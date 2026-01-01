@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+qiskit
+qiskit-aer
+numpy
+pydantic
+pytest
+httpx
+pytest-asyncio
+pytest-cov
