@@ -118,7 +118,43 @@ This demonstrates how E91 detects eavesdropping through loss of non-local correl
 This project is intended as both a **learning tool** and a **research-oriented prototype**, emphasizing clarity, correctness, and physical intuition.
 
 ---
+## How to Run
 
+### 1. Install Dependencies
+
+Create a virtual environment (recommended) and install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+The backend relies on **Qiskit AerSimulator** and a lightweight API server for handling quantum circuit execution.
+
+---
+
+### 2. Start the Backend Server
+
+Run the Qiskit simulation backend:
+
+```bash
+python qiskit_api.py
+```
+
+This starts the server that executes all quantum circuits and returns measurement results to the frontend.
+
+---
+
+### 3. Launch the Frontend
+
+Open your `8000 port` in a web browser. All protocol phases are accessed from the dashboard:
+
+* Phase 1: Entanglement verification
+* Phase 2: Key generation & sifting
+* Advanced: Security breach & noise analysis
+
+> Note: All quantum computation is performed server-side. The browser is used exclusively for visualization and interaction.
+
+---
 ## License
 
 This project is released under the terms specified in the `LICENSE` file.
