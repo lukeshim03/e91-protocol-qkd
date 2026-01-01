@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E91 Phase 1: Qiskit Backend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .quantum-card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { background-color: #0f172a; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <a href="index.html" class="text-cyan-400 hover:text-cyan-300 text-sm font-bold mb-6 inline-block tracking-widest">← RETURN TO DASHBOARD</a>
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                E91 Protocol: Phase 1
+            </h1>
+            <div id="engineLabel" class="text-[10px] font-mono text-slate-500 uppercase">Engine: Qiskit Server</div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 space-y-6">
+                <div class="quantum-card p-6 rounded-2xl">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="w-3 h-3 bg-cyan-400 rounded-full mr-2"></span>
+                        Experiment Settings
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Number of Shots</label>
+                            <input type="number" id="shotCount" value="1024" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white">
+                        </div>
+                        <button id="runExp" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white transition-all py-3 rounded-xl font-bold shadow-lg">
+                            Run Experiment
+                        </button>
+                    </div>
+                </div>
+
+                <div class="quantum-card p-6 rounded-2xl">
+                    <h2 class="text-xl font-semibold mb-4 text-center">Bell Inequality Result (S)</h2>
+                    <div id="sValueDisplay" class="text-6xl font-black text-cyan-400 text-center mb-2">0.000</div>
+                    <p id="sResultText" class="text-xs text-center text-slate-500">Click Run Experiment to measure Bell inequality violation.</p>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-8">
+                <div class="quantum-card p-6 rounded-2xl h-[400px]">
+                    <canvas id="correlationChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+        
+        // Use relative URL for API endpoint
+        const API_URL = '/api/phase1/chsh';
+
+        window.onload = () => {
+            const ctx = document.getElementById('correlationChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['E(0°, 22.5°)', 'E(0°, 67.5°)', 'E(45°, 22.5°)', 'E(45°, 67.5°)'],
+                    datasets: [{
+                        label: 'Correlation',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: '#0ea5e9'
+                    }]
+                },
+                options: { 
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: -1, max: 1 }
+                    }
+                }
+            });
+
+            console.log('Chart initialized successfully');
+        };
+
+        document.getElementById('runExp').addEventListener('click', async () => {
+            const shots = parseInt(document.getElementById('shotCount').value);
+            const btn = document.getElementById('runExp');
+            const engineLabel = document.getElementById('engineLabel');
+            
+            btn.disabled = true;
+            btn.innerText = "Running Simulation...";
+            engineLabel.innerText = "Engine: Connecting...";
+
+            console.log(`Starting experiment with ${shots} shots`);
+
+            try {
+                // Fetch with timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ shots: shots }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                console.log(`Response: ${res.status} ${res.statusText}`);
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Backend error ${res.status}: ${errorText}`);
+                }
+
+                const result = await res.json();
+                console.log('Success! Data:', result);
+
+                // Update UI with results
+                document.getElementById('sValueDisplay').innerText = result.s_value.toFixed(3);
+                chart.data.datasets[0].data = result.correlations;
+                chart.update();
+                engineLabel.innerText = `Engine: ${result.source || 'Qiskit AerSimulator'}`;
+                
+                const text = document.getElementById('sResultText');
+                if (result.violation) {
+                    text.innerText = "✅ Bell Inequality VIOLATED: Non-local entanglement detected";
+                    text.className = "text-xs text-center text-cyan-400 font-bold";
+                } else {
+                    text.innerText = "❌ Classical Limit: No entanglement evidence";
+                    text.className = "text-xs text-center text-red-400 font-bold";
+                }
+
+            } catch (err) {
+                console.error('Error:', err);
+                
+                engineLabel.innerText = "Engine: Offline";
+                
+                const text = document.getElementById('sResultText');
+                
+                if (err.name === 'AbortError') {
+                    text.innerText = "⏱️ Timeout: Server not responding";
+                } else if (err.message.includes('Failed to fetch')) {
+                    text.innerText = "🔌 Connection Failed: Check if server is running";
+                } else {
+                    text.innerText = `⚠️ Error: ${err.message}`;
+                }
+                
+                text.className = "text-xs text-center text-red-400 font-bold";
+                
+                alert(
+                    `Backend Connection Failed:\n\n` +
+                    `Error: ${err.message}\n\n` +
+                    `Checklist:\n` +
+                    `1. Is the server running? (python qiskit_api.py)\n` +
+                    `2. Is port 8000 available?\n` +
+                    `3. Check browser console (F12) for detailed errors.`
+                );
+            }
+
+            btn.disabled = false;
+            btn.innerText = "Run Experiment";
+        });
+    </script>
+</body>
+</html>

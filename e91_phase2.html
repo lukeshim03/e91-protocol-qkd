@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>E91 Phase 2: Key Generation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .quantum-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen font-sans">
+    <div class="container mx-auto px-6 py-10">
+        <a href="index.html" class="text-emerald-400 hover:text-emerald-300 text-sm font-bold mb-6 inline-block tracking-widest">← RETURN TO DASHBOARD</a>
+        
+        <header class="mb-10">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                Phase 2: Key Generation & Sifting
+            </h1>
+            <p class="text-slate-400 mt-2">Simulating the Basis Reconciliation Protocol</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Controls -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="quantum-card p-6 rounded-2xl">
+                    <h2 class="text-xl font-bold mb-4">Protocol Config</h2>
+                    <label class="block text-xs uppercase text-slate-500 mb-2">Number of Qubits</label>
+                    <input type="number" id="qubits" value="50" class="w-full bg-slate-800 p-3 rounded-lg border border-slate-700 mb-4">
+                    <button id="startBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold shadow-lg transition-all">Start Protocol</button>
+                </div>
+
+                <div class="quantum-card p-6 rounded-2xl">
+                    <h2 class="text-lg font-bold mb-4">Final Keys</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <span class="text-xs text-emerald-500 font-bold uppercase">Alice's Key</span>
+                            <div id="aliceKey" class="break-all font-mono text-xs text-slate-300 mt-1 bg-black/30 p-2 rounded">...</div>
+                        </div>
+                        <div>
+                            <span class="text-xs text-emerald-500 font-bold uppercase">Bob's Key</span>
+                            <div id="bobKey" class="break-all font-mono text-xs text-slate-300 mt-1 bg-black/30 p-2 rounded">...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div class="lg:col-span-2">
+                <div class="quantum-card p-6 rounded-2xl h-[600px] flex flex-col">
+                    <h2 class="text-xl font-bold mb-4">Transmission Log</h2>
+                    <div class="overflow-y-auto flex-1">
+                        <table class="w-full text-left text-sm">
+                            <thead class="sticky top-0 bg-slate-900/90 text-slate-500">
+                                <tr>
+                                    <th class="p-2">#</th>
+                                    <th class="p-2">Alice Basis</th>
+                                    <th class="p-2">Bob Basis</th>
+                                    <th class="p-2">Raw Bits</th>
+                                    <th class="p-2">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logBody" class="font-mono text-xs">
+                                <!-- JS Injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            const n = parseInt(document.getElementById('qubits').value);
+            const tbody = document.getElementById('logBody');
+            tbody.innerHTML = '';
+            
+            let keyA = "", keyB = "";
+            
+            try {
+                const res = await fetch('/api/phase2/keygen', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: n }),
+                    signal: AbortSignal.timeout(10000)
+                });
+                if (!res.ok) throw new Error('Backend error: ' + res.status);
+                const data = await res.json();
+                const alice_bases = data.alice_bases;
+                const bob_bases = data.bob_bases;
+                const raw_a = data.raw_bits_a;
+                const raw_b = data.raw_bits_b;
+
+                for (let i = 0; i < n; i++) {
+                    const bA = alice_bases[i];
+                    const bB = bob_bases[i];
+                    const bitA = raw_a[i];
+                    const bitB = raw_b[i];
+
+                    let action = "<span class='text-slate-600'>Discard</span>";
+                    let rowClass = "border-b border-slate-800 text-slate-400";
+
+                    if (bA === bB) {
+                        action = "<span class='text-emerald-400 font-bold uppercase'>KEEP (KEY)</span>";
+                        keyA += bitA;
+                        keyB += bitB;
+                        rowClass = "border-b border-slate-800 bg-emerald-900/10 text-emerald-200";
+                    }
+
+                    const row = `
+                        <tr class="${rowClass}">
+                            <td class="p-2">${i+1}</td>
+                            <td class="p-2">${bA}°</td>
+                            <td class="p-2">${bB}°</td>
+                            <td class="p-2">${bitA} / ${bitB}</td>
+                            <td class="p-2">${action}</td>
+                        </tr>
+                    `;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                }
+
+            } catch (err) {
+                alert('백엔드에 연결할 수 없습니다. Qiskit 백엔드를 실행한 후 다시 시도하세요.');
+                return;
+            }
+
+            document.getElementById('aliceKey').innerText = keyA || "None";
+            document.getElementById('bobKey').innerText = keyB || "None";
+        });
+    </script>
+</body>
+</html>
